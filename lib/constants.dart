@@ -13,3 +13,6 @@ enum UploadDestination {
   // Upload Image to Firebase Storage
   FirebaseStorage,
 }
+
+// num constants
+double MAX_IMAGE_DIM = 1024;

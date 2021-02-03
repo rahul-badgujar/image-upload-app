@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -18,12 +19,12 @@ class Body extends StatefulWidget {
 
 class _BodyState extends State<Body> {
   /// Local Path of Image selected to upload
-  String imageFilePath;
+  PickedFile imageFilePicked;
 
   @override
   void initState() {
     super.initState();
-    imageFilePath = null;
+    imageFilePicked = null;
   }
 
   @override
@@ -37,14 +38,15 @@ class _BodyState extends State<Body> {
           child: Column(
             children: [
               Container(
+                alignment: Alignment.center,
                 constraints: BoxConstraints(
-                  minWidth: mediaqueryData.size.shortestSide * 0.7,
-                  minHeight: mediaqueryData.size.longestSide * 0.2,
-                  maxWidth: mediaqueryData.size.shortestSide * 0.8,
-                  maxHeight: mediaqueryData.size.longestSide * 0.3,
+                  minWidth: mediaqueryData.size.shortestSide * 0.75,
+                  minHeight: mediaqueryData.size.longestSide * 0.24,
+                  maxWidth: mediaqueryData.size.shortestSide * 0.85,
+                  maxHeight: mediaqueryData.size.longestSide * 0.32,
                 ),
                 margin: const EdgeInsets.all(8),
-                child: imageFilePath == null // image is not selected
+                child: imageFilePicked == null // image is not selected
                     // show Button to select image
                     ? Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -63,12 +65,42 @@ class _BodyState extends State<Body> {
                         ],
                       )
                     // show Image selected
-                    : Image.memory(
-                        File(imageFilePath).readAsBytesSync(),
-                        fit: BoxFit.cover,
+                    : FutureBuilder<Uint8List>(
+                        future: imageFilePicked.readAsBytes(),
+                        builder: (context, snapshot) {
+                          if (snapshot.hasError) {
+                            return Icon(
+                              Icons.error,
+                              size: 50,
+                              color: Colors.black54,
+                            );
+                          } else if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return CircularProgressIndicator();
+                          }
+                          return Column(
+                            children: [
+                              Expanded(
+                                child: Image.memory(
+                                  snapshot.data,
+                                  fit: BoxFit.contain,
+                                ),
+                              ),
+                              Divider(),
+                              Text(
+                                "Image size: " +
+                                    // lengthSync gives length of file in bytes, converting it into kB
+                                    ((snapshot.data.buffer.lengthInBytes /
+                                                (1024))
+                                            .toString() +
+                                        " kB"),
+                              ),
+                            ],
+                          );
+                        },
                       ),
               ),
-              if (imageFilePath != null) // if image is selected
+              if (imageFilePicked != null) // if image is selected
                 // show Upload and Cancel Button
                 Padding(
                   padding: const EdgeInsets.all(8.0),
@@ -150,17 +182,15 @@ class _BodyState extends State<Body> {
 
   /// Function to Upload Image to Firebase
   Future<bool> _uploadImageToFirebase() async {
-    // Create File from imageFilePath
-    final File imageFile = File(imageFilePath);
     // To store Download URL of Image
     String downloadUrl;
 
     final imageUploadFuture = FirebaseStorageServices()
         .uploadFileToPath(
-          imageFile,
+          File(imageFilePicked.path),
           UPLOAD_DIRECTORY,
           // extracting Filename
-          imageFile.path.split("/").last,
+          imageFilePicked.path.split("/").last,
         )
         .then((value) => downloadUrl = value);
 
@@ -184,7 +214,10 @@ class _BodyState extends State<Body> {
     // Flag for Upload Status
     bool result = false;
     final imageUploadFuture = SFTPService()
-        .uploadFileToSFTPServer(UPLOAD_DIRECTORY, imageFilePath)
+        .uploadFileToSFTPServer(
+          UPLOAD_DIRECTORY,
+          imageFilePicked.path,
+        )
         .then((value) => result = value);
     // show Progress Dialog untill Future completes
     await showDialog(
@@ -205,10 +238,13 @@ class _BodyState extends State<Body> {
       // Prompt user to chose image source
       final imageSource = await _showImageSourcePicker(context);
       // Prompt user to select image from given source
-      final imgPath =
-          await LocalFileManager().choseImageFromLocalFiles(imageSource);
+      final imgPath = await LocalFileManager().choseImageFromLocalFiles(
+        imageSource,
+        maxHeight: MAX_IMAGE_DIM,
+        maxWidth: MAX_IMAGE_DIM,
+      );
       setState(() {
-        imageFilePath = imgPath;
+        imageFilePicked = imgPath;
       });
     }
     // Handle Exceptions
@@ -225,7 +261,7 @@ class _BodyState extends State<Body> {
   /// Callback Function to remove selected image
   void _removeImageCallback() {
     setState(() {
-      imageFilePath = null;
+      imageFilePicked = null;
     });
   }
 

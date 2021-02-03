@@ -13,10 +13,16 @@ class LocalFileManager {
   ///
   /// Parameters:
   /// * [imageSource]: Source of Image (Camera/Gallery), must not be null
+  /// * [maxHeight]: maximum height of image (if found greater, image will be compressed)
+  /// * [maxWidth]: maximum width of image (if found greater, image will be compressed)
   ///
   /// Returns:
   /// * Path to image picked
-  Future<String> choseImageFromLocalFiles(ImageSource imageSource) async {
+  Future<PickedFile> choseImageFromLocalFiles(
+    ImageSource imageSource, {
+    double maxHeight,
+    double maxWidth,
+  }) async {
     assert(imageSource != null, "imageSource cannot be null");
 
     // check for storage permissions
@@ -24,14 +30,13 @@ class LocalFileManager {
 
     final imagePicker = ImagePicker();
     // pick image
-    final PickedFile imagePicked =
-        await imagePicker.getImage(source: imageSource);
+    final PickedFile imagePicked = await imagePicker.getImage(
+      source: imageSource,
+      maxHeight: maxHeight,
+      maxWidth: maxWidth,
+    );
 
-    if (imagePicked == null) {
-      throw Exception("Image not picked");
-    } else {
-      return imagePicked.path;
-    }
+    return imagePicked;
   }
 
   /// Check Storage Permissions
